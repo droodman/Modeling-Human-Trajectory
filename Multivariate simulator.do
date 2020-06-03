@@ -43,10 +43,10 @@ end
 foreach r in 0 1 { // flag to endogenize natural resource
 
 	mata alpha = .3 \ .3 \ .3 \ .1 \ 1                  // exponents in production for K, P, H, R, A
-	mata phi = 0 \ -.1 \ .1 \ -.01 \ .4                 // elasticities w.r.t. technology
+	mata phi = 0 \ -.1 \ .1 \ -.01 \ -.5                 // elasticities w.r.t. technology
 	mata s = .25 \ .2 \ .04 \ -.01*`r' \ .025           // reinvestment coefficients
 	mata delta = -.03 \ -.02 \ -.02 \ .001*`r' \ -.001  // exogenous depreciation/appreciation
-	mata (y0 = J(5,1,1))[(1\3\5)] = J(3,1,.10374)       // initial values
+	mata (y0 = J(5,1,1))[(1\3\5)] = J(3,1,.03117)       // initial values
 
 	mata k = length(phi); iota = J(k,1,1); (Phi = J(k,k,0))[,k] = phi; B = iota*alpha' - I(k) + Phi
 	mata eigensystem(B, V=., L=.)
@@ -69,7 +69,7 @@ foreach r in 0 1 { // flag to endogenize natural resource
 	getmata t=T ly1_0=lnY (ly1_*)=lny1 (z*)=z theta, double force replace
 
 	if !`r' {
-		mata (y0 = J(5,1,1))[(1\3\5)] = J(3,1,.10364)
+		mata (y0 = J(5,1,1))[(1\3\5)] = J(3,1,.03107)
 		mata lny2 = sim(B, s, delta, ln(y0), dt, steps, Tres); lnY2  = lny2 * alpha
 		getmata ly2_0=lnY2 (ly2_*)=lny2, double force replace
 	}
