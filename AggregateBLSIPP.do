@@ -488,7 +488,7 @@ WageScientistData = WageScientistData \
 
 
 WageYears = WageScientistData[,1]
-WageScientist = WageScientistData[,2]  // change 3 to 2 to use CPI in instead of scientist wages
+WageScientist = WageScientistData[,2]  // change 2 to 3 to use scientist wages instead of CPI
 WageSci=WageScientist[annualyrs:-WageYears[1]:+1]
 
 yrs= 1930, 1940 \
