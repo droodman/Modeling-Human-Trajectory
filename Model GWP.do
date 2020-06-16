@@ -1,6 +1,6 @@
 *** Estimation code for Roodman, "Modeling the Human Trajectory" as of May 22, 2020
 *** Requires Ben Jann's estout and grstyle packages, as well as the asdf package distributed with this file
-*** asdf version 0.1.0 can be installed with "net install asdf, from(https://raw.github.com/droodman/asdf/v0.1.0) replace"
+*** asdf version 0.1.0 can be installed with "net install asdf, from(https://raw.github.com/droodman/asdf/v0.1.1) replace"
 ***
 *** The estimation code below is complex, but performing a basic estimate only takes a few lines:
 ***   PrepData if Year>=-10000, depvar(GWP) historicpop(PopMcEvedyJones) prehistoricpop(PopDeevey)  // make data set starting in 10,000 BCE
@@ -319,45 +319,9 @@ forvalues v=1/4 {
 			scalar converged = e(converged)
 			scalar reflect   = e(reflect)
 
-			* compute nonlinear derived quantities including s, B, delta, sigma, no-take-off probability, median take-off year, with standard errors
-      scalar s = exp([/lna]) * [/gamma] * ([/nu] + [/gamma])
-			local nlcomcmd (lna  : [/lna]) (b:[/b]) (nu:[/nu]) (gamma:[/gamma]) ///
-										 (s    : `=cond(e(rank)<e(k), "0", "exp([/lna]) * [/gamma] * ([/nu] + [/gamma]) / s")') ///  // under constrained model, s=0 by fiat and nlcom complains
-										 (B    : -1 / [/gamma]) ///
-										 (delta: [/b] * [/gamma]) ///
-										 (sigma: sqrt(2) * exp([/lna]/2) * abs([/gamma]))
-			if ([/nu]+[/gamma]) / [/b] < 0 local nlcomcmd `nlcomcmd' (Y_b  : (-exp([/lna]) * ([/nu]+[/gamma]) / [/b]) ^ [/gamma])   // zero-drift level
-
-			foreach if in i f {  // initial, final
-				if [/nu]<=0 & [/gamma]<0 {
-					local notakeoffprob gammap(-[/nu], [/b] / exp([/lna]) * Y`if'^(1/[/gamma]))
-					scalar notakeoffprob`if' = `notakeoffprob'
-					if notakeoffprob`if' local nlcomcmd `nlcomcmd' (notakeoffprob`if': `notakeoffprob' / `=notakeoffprob`if'')  // trick to avoid crash stata.com/statalist/archive/2009-03/msg01244.html
-													else local nlcomcmd `nlcomcmd' (notakeoffprob`if': 0                                     )
-
-					local takeoffb0 Y`if'^(1/[/gamma]) / exp([/lna]) / invgammap(-[/nu], .5)
-					if notakeoffprob`if'<.5 {
-						local mediantakeoff`if' cond([/b], -ln1m([/b]*`takeoffb0')/[/b], `takeoffb0')
-						scalar mediantakeoff`if' = `mediantakeoff`if''
-						local nlcomcmd `nlcomcmd' (mediantakeoff`if': `mediantakeoff`if'' / mediantakeoff`if')
-					}
-				}
-				else {
-					scalar notakeoffprobi = 1
-					scalar notakeoffprobf = 1
-				}
-			}
-			nlcom `nlcomcmd', post
-
-			local nlcomcmd
-			foreach var in `:colnames e(b)' {
-				     if inlist(substr("`var'",1,9), "s", "notakeoff") local nlcomcmd `nlcomcmd' (`var': _b[`var'] * `var'                           )  // finish trick to avoid crash
-				else if        substr("`var'",1,13)=="mediantakeoff"  local nlcomcmd `nlcomcmd' (`var': _b[`var'] * `var' + t`=substr("`var'",14,1)')
-				else                                                  local nlcomcmd `nlcomcmd' (`var': _b[`var']                                   )
-			}
-			nlcom `nlcomcmd', post
-
-			cap scalar mediantakeoff = _b[mediantakeofff]
+      asdfBernouNL  // create new estimation results with nonlinear derived quantities: s, B, delta, sigma, no-take-off probability, median take-off year
+      
+      cap scalar mediantakeoff = _b[mediantakeofff]
 			if _rc scalar mediantakeoff = .
 
 			estadd scalar converged = converged
