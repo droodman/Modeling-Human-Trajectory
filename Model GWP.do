@@ -432,7 +432,6 @@ graph export Combined.png, replace
 
 ***
 *** Robustness test: Fit to De Long and Hanson series, as reported in footnote ~41
-*** save results table in "vsDeLongHanson.rtf"
 ***
 
 mat init = 0,0,-1,-1
@@ -456,7 +455,7 @@ esttab est? using "vsDeLongHanson.rtf", se replace
 
 
 ***
-*** robustness test: reduce or increase GWP by HYDE-based factor, as reported in text
+*** Robustness test: reduce or increase GWP by HYDE-based factor, as reported in text
 ***
 
 PrepData if Year>=-10000 & (Year<=1950 | inlist(Year,1960,1970,1980,1990,2000,2010,2019)), depvar(GWP) historicpop(PopMcEvedyJones) prehistoricpop(PopDeevey)
@@ -477,7 +476,7 @@ est table BernouGWP12KDec lo hi, stat(B mediantakeoff)
 
 
 ***
-*** compute quantile of each obs in predicted distribution from regression on previous ones
+*** Compute quantile of each obs in predicted distribution from regression on previous ones
 *** among the saved graphs, BernoudiffPredGWP12KDec used in paper
 ***
 
