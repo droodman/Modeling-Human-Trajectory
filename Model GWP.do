@@ -20,13 +20,14 @@ scalar Tsamp = 10000  // number of evenly spaced observations that simulator sho
 scalar Tres = 10      // number of time steps per returned time point
 scalar M = 10000      // number of paths to generate when plotting path distributions
 
-global GWPvar GWP
-global Popvar Pop
-global GWPcapvar GWPcap
-global GDPcapvar FRAGDPcapMaddison2018
-
 cap program drop PrepData
 program define PrepData
+
+  global GWPvar GWP
+  global Popvar Pop
+  global GWPcapvar GWPcap
+  global GDPcapvar FRAGDPcapMaddison2018
+
 	import excel GWP, firstrow sheet(Data) cellrange(A2:BR160) clear
 
 	keep Year PopMaddison* PopDeevey PopHYDE* PopUN* GWPcapMaddison* PopMcEvedyJones* *WEO* FRAGDPcapMaddison2018 PopKremer PopgrowthKremer GWPDeLong GWPHansonreconstructed
@@ -36,6 +37,7 @@ program define PrepData
 	tsset Year
 
 	tempvar n tmp lnpop
+
 	gen double `tmp' = cond(Year<=-10000, 1, cond(Year==0, .75, cond(Year==1700, .25, cond(Year==1900, .05, cond(Year>=2000, .01, .)))))  // HYDE 3.2.1 uncertainty bounds. E.g. .75 = +/-75%. Bounds are a linear spline w.r.t. year
 	ipolate `tmp' Year, gen(HYDEsd)
 	gen double HYDEwt = HYDEsd*HYDEsd
@@ -256,8 +258,8 @@ constraint 2                   // no constraint for general model
 ***
 *** Also produces Stata estimation results (.ster) files with names <Model><Depvar><Sample>. Versions with "nl" suffixes add nonlinear derived estimates
 *** (s, B, delta, sigma, median takeoff times and takeoff probabilities) 
-Also produces results tables "SDE fits [depvar] .rtf" like paper's Table 2; and paper's Table 3, "SDE fits 12KDecnl .rtf".
 ***
+*** And produces results tables "SDE fits [depvar] .rtf" like paper's Table 2; and paper's Table 3, "SDE fits 12KDecnl .rtf".
 ***
 
 forvalues v=1/4 {
@@ -299,7 +301,7 @@ forvalues v=1/4 {
 		forvalues m=`=1+(`v'!=1 & `s'!=4)'/2 {  // do the time-consuming CEV only for regressions reported in text
 			local modelname : word `m' of CEV Bernou
       
-			* diffusion model
+			* diffusion model--try estimating from a few starting points, reflecting and non-reflecting variants
       asdf ${`depvar'var} [aw=HYDEwt], model(bernoudiff) reflect(0) from(NLSinit) iter(`=cond(`m'==1,1000,50)') constraint(`m')
       if !e(converged) {
       	mat init = 0,0,-1,-1
@@ -317,14 +319,8 @@ forvalues v=1/4 {
 			scalar converged = e(converged)
 			scalar reflect   = e(reflect)
 
-			scalar lna = [/lna]
-			scalar a = exp(lna)
-			scalar b = [/b]
-			scalar nu =[/nu]
-			scalar gamma = [/gamma]
-			scalar c = a * (nu+1)
-
-			scalar s = exp([/lna]) * [/gamma] * ([/nu] + [/gamma])
+			* compute nonlinear derived quantities including s, B, delta, sigma, no-take-off probability, median take-off year, with standard errors
+      scalar s = exp([/lna]) * [/gamma] * ([/nu] + [/gamma])
 			local nlcomcmd (lna  : [/lna]) (b:[/b]) (nu:[/nu]) (gamma:[/gamma]) ///
 										 (s    : `=cond(e(rank)<e(k), "0", "exp([/lna]) * [/gamma] * ([/nu] + [/gamma]) / s")') ///  // under constrained model, s=0 by fiat and nlcom complains
 										 (B    : -1 / [/gamma]) ///
@@ -336,7 +332,7 @@ forvalues v=1/4 {
 				if [/nu]<=0 & [/gamma]<0 {
 					local notakeoffprob gammap(-[/nu], [/b] / exp([/lna]) * Y`if'^(1/[/gamma]))
 					scalar notakeoffprob`if' = `notakeoffprob'
-					if notakeoffprob`if' local nlcomcmd `nlcomcmd' (notakeoffprob`if': `notakeoffprob' / `=notakeoffprob`if'')  // trick to avoid crash https://www.stata.com/statalist/archive/2009-03/msg01244.html
+					if notakeoffprob`if' local nlcomcmd `nlcomcmd' (notakeoffprob`if': `notakeoffprob' / `=notakeoffprob`if'')  // trick to avoid crash stata.com/statalist/archive/2009-03/msg01244.html
 													else local nlcomcmd `nlcomcmd' (notakeoffprob`if': 0                                     )
 
 					local takeoffb0 Y`if'^(1/[/gamma]) / exp([/lna]) / invgammap(-[/nu], .5)
@@ -370,10 +366,11 @@ forvalues v=1/4 {
 			est resto `modelname'`depvar'`tsamplename'`region'
 
 			* plot sample paths and distribution thereof for full-sample fit
-      foreach nov in nov "" {  // with and without variance in estimates
+      foreach nov in nov "" {  // with and without variability around parameter estimates
         Plot, `nov' modelname(`modelname') tsamplename(`tsamplename') depvar(`depvar') region(`region') xlabels(`xlabels') mediantakeoff(mediantakeoff)
       }
       
+      * goodness-of-fit tests and graph
       cap drop p
       predict double p, cdf
       di "Kolmogorov-Smirnov test that p values from `est' model are uniformly distributed:"
@@ -395,11 +392,13 @@ forvalues v=1/4 {
         scatter p lnYear if p<. & (Year<1950 | mod(Year,10)==0 | Year==2019), mlab(strYear) mlabgap(0) mlabsize(small) msym(none)  ///
         legend(off) xscale(noline reverse range(1.75 .)) xlab(none) ymtick(0(.01)1, notick grid glwidth(vthin) glcolor(gs15)) ///
         ylab(0 "0" .1 "0.1" .2 "0.2" .3 "0.3" .4 "0.4" .5 "0.5" .6 "0.6" .7 "0.7" .8 "0.8" .9 "0.9" 1 "1", notick angle(hor) format(%3.1f) grid glwidth(thin) glcolor(gs14)) ///
-        plotregion(lwidth(none) margin(zero)) graphregion(margin(0 0 0 1)) ytitle(Quantile) xtitle("Year") xscale(range(3.7 8.1)) ///
+        plotregion(lwidth(none) margin(zero)) graphregion(margin(0 0 0 1)) ytitle(Quantile) xtitle(Year) xscale(range(3.7 8.1)) ///
         name(`modelname'CDF`depvar'`tsamplename', replace)
       graph save "`modelname'CDF`depvar'`tsamplename'", replace
       graph export `modelname'CDF`depvar'`tsamplename'.png, replace width(2680) height(1552)
 		}
+    
+    * LR test of CEV vs Bernoulli diffusion, when CEV done
 		cap lrtest Bernou`depvar'`tsamplename'`region' CEV`depvar'`tsamplename'`region', df(1)
 		if !_rc {
     	estadd scalar chi2CEV  = r(chi2), replace: Bernou`depvar'`tsamplename'`region'nl
@@ -408,12 +407,16 @@ forvalues v=1/4 {
     }
 		local ests `ests' Bernou`depvar'`tsamplename'`region'nl
 	}
+  
+  * Estimation table for each depvar (only that for GWP in text, Table 2)
 	esttab `ests' using "SDE fits `depvar' `region'.rtf", replace ///
 		keep (lna b nu gamma s B delta sigma Y_b notakeoffprobi mediantakeoffi notakeoffprobf mediantakeofff) ///
 		order(lna b nu gamma s B delta sigma Y_b notakeoffprobi mediantakeoffi notakeoffprobf mediantakeofff) ///
 		scalars(reflect converged chi2CEV chi2pCEV ksmirnovp corrp N) noobs ///
 		se nostar varlabels(delta \u0948? sigma \u0963? gamma \u0947? nu \u0957? lna "log a")
 }
+
+* Cross-var table for sample starting 10,000 BCE, decennial after 1950 (Table 3)
 esttab BernouGWP12KDec`region'nl BernouPop12KDec`region'nl BernouGWPcap12KDec`region'nl BernouGDPcap12KDec`region'nl using "SDE fits 12KDecnl `region'.rtf", replace ///
 	keep (lna b nu gamma s B delta sigma Y_b notakeoffprobi mediantakeoffi notakeoffprobf mediantakeofff) ///
 	order(lna b nu gamma s B delta sigma Y_b notakeoffprobi mediantakeoffi notakeoffprobf mediantakeofff) ///
@@ -533,7 +536,6 @@ forvalues v=1/4 {
     cap drop lnYear
     gen double lnYear = ln(tf + 10 - Year)
     format ptile_* %3.2f
-    sum ptile_*
     foreach est in nls diff /*diffstat*/ {
       di "Kolmogorov-Smirnov test that p values from `est' model are uniformly distributed:"
       ksmirnov ptile_`est'=ptile_`est'
@@ -541,7 +543,7 @@ forvalues v=1/4 {
         scatter ptile_`est' lnYear if ptile_`est'<. & (Year<1950 | mod(Year,10)==0 | Year==2019), mlab(strYear) mlabgap(0) mlabsize(medium) msym(none) ///
         legend(off) xscale(noline reverse range(1.75 .)) xlab(none) ymtick(0(.01)1, notick grid glwidth(vthin) glcolor(gs15)) ///
         ylab(0 "0" .1 "0.1" .2 "0.2" .3 "0.3" .4 "0.4" .5 "0.5" .6 "0.6" .7 "0.7" .8 "0.8" .9 "0.9" 1 "1", notick angle(hor) format(%3.1f) grid glwidth(thin) glcolor(gs14)) ///
-        plotregion(lwidth(none) margin(0 0 1 0)) graphregion(margin(0 0 0 3)) ytitle("") xtitle("Year") ///
+        plotregion(lwidth(none) margin(0 0 1 0)) graphregion(margin(0 0 0 3)) ytitle("") xtitle(Year) ///
         name(Bernou`est'Pred`depvar'`tsamplename', replace)
       graph save "Bernou`est'Pred`depvar'`tsamplename'", replace
       graph export Bernou`est'Pred`depvar'`tsamplename'.png, replace width(2680) height(1552)
