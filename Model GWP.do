@@ -1,6 +1,6 @@
 *** Estimation code for Roodman, "Modeling the Human Trajectory" as of May 22, 2020
 *** Requires Ben Jann's estout and grstyle packages, as well as the asdf package distributed with this file
-*** asdf version 0.1.0 can be installed with "net install asdf, from(https://raw.github.com/droodman/asdf/v0.1.1) replace"
+*** asdf version 0.1.0 can be installed with "net install asdf, from(https://raw.github.com/droodman/asdf/v0.1.2) replace"
 ***
 *** The estimation code below is complex, but performing a basic estimate only takes a few lines:
 ***   PrepData if Year>=-10000, depvar(GWP) historicpop(PopMcEvedyJones) prehistoricpop(PopDeevey)  // make data set starting in 10,000 BCE
@@ -20,13 +20,13 @@ scalar Tsamp = 10000  // number of evenly spaced observations that simulator sho
 scalar Tres = 10      // number of time steps per returned time point
 scalar M = 10000      // number of paths to generate when plotting path distributions
 
+global GWPvar GWP
+global Popvar Pop
+global GWPcapvar GWPcap
+global GDPcapvar FRAGDPcapMaddison2018
+
 cap program drop PrepData
 program define PrepData
-
-  global GWPvar GWP
-  global Popvar Pop
-  global GWPcapvar GWPcap
-  global GDPcapvar FRAGDPcapMaddison2018
 
 	import excel GWP, firstrow sheet(Data) cellrange(A2:BR160) clear
 
@@ -444,7 +444,7 @@ est table BernouGWP12KDec lo hi, stat(B mediantakeoff)
 *** among the saved graphs, BernoudiffPredGWP12KDec used in paper
 ***
 
-forvalues v=1/4 {
+forvalues v=1/1 {
 	local depvar: word `v' of GWP Pop GWPcap GDPcap
 
 	forvalues s=4/4 {
@@ -459,6 +459,9 @@ forvalues v=1/4 {
       gen double ptile_`est' = .
       mata st_view(ptile_`est'=., ., "ptile_`est'")
     }
+    gen double mediantakeofff   = .
+    gen double mediantakeofffse = .
+    
     mata Y = st_data(., "${`depvar'var}"); tdelta = st_data(., "tdelta"); Ydot = (Y[|2\.|] :/ Y[|.\rows(Y)-1|]) :^ (1 :/ tdelta[|2\.|]) :- 1
 		gen byte sample = _n < _N
 
@@ -479,6 +482,10 @@ forvalues v=1/4 {
         asdfSim, t0(`=Year[`n'-1]') y0(`=${`depvar'var}[`n'-1]') t(`=tdelta[`n']') tsamp(1) tres(10000) m(10000)
         mata ptile_diff[`n'] = mean(Yf :< Y[`n'])
       }
+
+      asdfBernouNL  // get predicted take-off year
+      replace mediantakeofff   =  _b[mediantakeofff] in `=`n'-1'
+      replace mediantakeofffse = _se[mediantakeofff] in `=`n'-1' 
 
 /*			* ...and diffusion model, static
       cap noi asdf ${`depvar'var} if _n<`n' [aw=HYDEwt*tdelta], model(bernoudiff) reflect(0) from(NLSinit) iter(100) modeltype(static)
@@ -513,6 +520,50 @@ forvalues v=1/4 {
     }
   }
 }
+
+* graphs for https://www.openphilanthropy.org/blog/modeling-human-trajectory#comment-793
+mat init = 0,0,-1,-1
+asdf ${GWPvar} [aw=HYDEwt], model(bernoudiff) reflect(0) from(init)
+asdfBernouNL  // get predicted take-off year
+replace mediantakeofff   =  _b[mediantakeofff] in `=_N'
+replace mediantakeofffse = _se[mediantakeofff] in `=_N' 
+
+set scheme s1mono
+graph set window fontface Merriweather
+cap drop mediantakeoffflo
+cap drop mediantakeofffhi
+gen mediantakeoffflo = mediantakeofff - 1.96 * mediantakeofffse
+gen mediantakeofffhi = mediantakeofff + 1.96 * mediantakeofffse
+cap drop mediantakeofffr
+gen int mediantakeofffr = round(mediantakeofff)
+cap drop lnYear
+gen double lnYear = ln(2046.80075994332 - Year)
+myNiceLogLabels lnYear if mediantakeofff<.
+twoway rarea mediantakeoffflo mediantakeofffhi lnYear, astyle(ci) || ///
+       connected mediantakeofff lnYear, mlab(Year) mcolor(black) msize(tiny) lwidth(vthin) mlabpos(n) ///
+       || if mediantakeofff<. & Year!=700, legend(off) plotregion(lwidth(none)) xscale(reverse) xlab(`r(labels)') ///
+       xtitle(Stop date for model: years till 2047) ytitle(Median year of projected take-off) graphregion(fcolor(247 247 247))
+graph export TakeOffvsDataStop1.png, replace width(2680) height(1552)
+
+myNiceLogLabels lnYear if mediantakeofff<. & Year>=1820
+twoway rarea mediantakeoffflo mediantakeofffhi lnYear, astyle(ci) || ///
+       connected mediantakeofff lnYear, mlab(Year) mcolor(black) msize(tiny) lwidth(vthin) mlabpos(n) mlabsize(medium) || ///
+       || if mediantakeofff<. & Year!=700 & Year>=1820, legend(off) plotregion(lwidth(none)) xscale(reverse) xlab(`r(labels)') ///
+       xtitle(Stop date for model: years till 2047) ytitle(Median year of projected take-off) graphregion(fcolor(247 247 247))
+graph export TakeOffvsDataStop2.png, replace width(2680) height(1552)
+
+twoway rarea mediantakeoffflo mediantakeofffhi lnYear, astyle(ci) || ///
+       connected mediantakeofff lnYear, mlab(mediantakeofffr) mcolor(black) msize(tiny) lwidth(vthin) mlabpos(n) ///
+       || if mediantakeofff<. & Year!=700, legend(off) plotregion(lwidth(none)) xscale(reverse) xlab(`r(labels)') ///
+       xtitle(Stop date for model: years till 2047) ytitle(Median year of projected take-off) graphregion(fcolor(247 247 247))
+graph export TakeOffvsDataStop3.png, replace width(2680) height(1552)
+
+myNiceLogLabels lnYear if mediantakeofff<. & Year>=1820
+twoway rarea mediantakeoffflo mediantakeofffhi lnYear, astyle(ci) || ///
+       connected mediantakeofff lnYear, mlab(mediantakeofffr) mcolor(black) msize(tiny) lwidth(vthin) mlabpos(n) mlabsize(medium) || ///
+       || if mediantakeofff<. & Year!=700 & Year>=1820, legend(off) plotregion(lwidth(none)) xscale(reverse) xlab(`r(labels)') ///
+       xtitle(Stop date for model: years till 2047) ytitle(Median year of projected take-off) graphregion(fcolor(247 247 247))
+graph export TakeOffvsDataStop4.png, replace width(2680) height(1552)
 
 
 
