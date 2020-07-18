@@ -1,15 +1,17 @@
 *** Estimation code for Roodman, "Modeling the Human Trajectory" as of May 22, 2020
-*** Requires Ben Jann's estout and grstyle packages, as well as the asdf package distributed with this file
-*** asdf version 0.1.0 can be installed with "net install asdf, from(https://raw.github.com/droodman/asdf/v0.1.2) replace"
+*** Requires Ben Jann's estout and grstyle packages, and the asdf package distributed with this file
+*** The -parallel- package of Yon and Quistorff is helpful for speeding up Monte Carlo simulation
+*** asdf can be installed with "net install asdf, from(https://raw.github.com/droodman/asdf/v0.1.2) replace"
 ***
 *** The estimation code below is complex, but performing a basic estimate only takes a few lines:
 ***   PrepData if Year>=-10000, depvar(GWP) historicpop(PopMcEvedyJones) prehistoricpop(PopDeevey)  // make data set starting in 10,000 BCE
 ***   mat init = 0,0,-1,-1                                                                      // starting estimates for lna, b, nu, gamma
-***   asdf GWP [aw=HYDEwt], model(bernoudiff) reflect(0) from(init)       // fit non-reflecting Bernoulli diffusion with HYDE-based weights
+***   asdf GWP [aw=HYDEwt], model(bernoudiff) reflect(0) from(init)       // fit non-reflecting superexponential diffusion with HYDE-based weights
 
 
 set scheme s1mono
 set autotabgraphs on
+set varabbrev off
 graph set window fontface Cambria
 grstyle init
 grstyle linewidth plineplot vthin
@@ -134,8 +136,8 @@ program define Plot
 	syntax, depvar(string) mediantakeoff(string) [nov modelname(string) tsamplename(string) region(string) XLABels(string asis) noclose]
 
 	asdfSim, t0(`=ti') y0(`=Yi') tsamp(`=Tsamp') tres(`=Tres') m(`=M') nq(20) ns(99) `v' t(`=T-ti')  // simulate from initial obs
-  mata lnYq = ln(Yq); lnYs = ln(Ys)
-	getmata Yeari=t (Yqi*)=lnYq (Ys*)=lnYs, double force replace
+  mata lnYq = ln(asdfSimYq); lnYs = ln(asdfSimYs)
+	getmata Yeari=asdfSimt (Yqi*)=lnYq (Ys*)=lnYs, double force replace
 
 	* plot sample paths
 	qui foreach var of varlist Ys* {
@@ -154,8 +156,8 @@ program define Plot
 
 	if `mediantakeoff' < . {
     asdfSim, t0(`=tf') y0(`=Yf') tsamp(`=Tsamp') tres(`=Tres') m(`=M') nq(20) `v' t(`=T-tf')  // simulate from final obs
-    mata lnYq = ln(Yq)
-    getmata Yearf=t (Yqf*)=lnYq, double force replace
+    mata lnYq = ln(asdfSimYq)
+    getmata Yearf=asdfSimt (Yqf*)=lnYq, double force replace
     cap drop lnYear
     cap gen double lnYear = ln(`mediantakeoff' - Year)
 		cap drop lnYeari
@@ -238,23 +240,45 @@ program define Plot
 	drop Yq*
 end
 
+
+* simple graphs of GWP and U.S. GDP/capita
+
+PrepData if Year>=-10000, depvar($GWPvar) historicpop(PopMcEvedyJones) prehistoricpop(PopDeevey)
+gen lnt = ln(2050 - Year)
+myNiceLogLabels lnGWP
+local ylabels `r(labels)'
+myNiceLogLabels lnt
+twoway connected lnGWP lnt, lcolor(red) mcolor(red) lstyle(solid) lwidth(vthin) msize(tiny) msymbol(O) plotregion(lwidth(none) margin(zero)) graphregion(margin(0 7 0 0)) ///
+                            ytitle("") ylab(`ylabels',angle(hor)) xlab(`r(labels)') xscale(reverse) xtit(Years till 2050) legend(off) || ///
+            lfit lnGWP lnt, lpat(tight_dot) lcolor(red) lwidth(medium)
+graph export GWP.png, width(2680) height(1552) replace
+
+import excel GWP, firstrow sheet(Maddison 2018 rgdpnapc) clear
+gen lnUSA = ln(USA)
+myNiceLogLabels lnUSA
+twoway connected lnUSA year, lcolor(red) mcolor(red) lstyle(solid) lwidth(vthin) msize(tiny) msymbol(O) plotregion(lwidth(none) margin(zero)) graphregion(margin(0 7 0 1)) ///
+                             ytitle("") xtitle("") ylab(`r(labels)',angle(hor)) xlab(1820(50)2020) legend(off) || ///
+            lfit lnUSA year, lpat(tight_dot) lcolor(red) lwidth(medium) || if year>=1820
+graph export USGDPcap.png, width(2680) height(1552) replace
+
+
 global region // blank, Eurasia, Africa, Americas, or Oceania
 local region = substr("$region",1,6)
 
-constraint 1 /nu + /gamma = 0  // defines CEV model within Bernoulli model
+constraint 1 /nu + /gamma = 0  // defines CEV model within superexponential model
 constraint 2                   // no constraint for general model
 
 ***
 *** Main estimation code, for 4 outcomes-- GWP, Pop, GWP/cap (GWPcap), and frontier GDP/cap (GDPcap), 
 ***                           4 samples--starting 1 m BCE ("All") or 10,000 BCE ("12K"), decennial ("Dec") or annual data after 1950
-***                           2 or 3 models (Bernoulli, NLS, and for regressions reported in text, time-consuming CEV)
+***                           2 or 3 models (superexponential, NLS, and for regressions reported in text, time-consuming CEV)
 *** For each non-NLS estimate, plots are generated of 99 sample paths ("Paths")
 ***                               and of distribution of 10,000 paths ("Dist") with time scale in logs ("Log") or not
 ***                                                                            with distinct parameter draws for each path or not ("nov")
 ***                               and of quantiles of data points in simulated paths
 *** Produces a LOT of graphs in png and Stata gph format. File naming is <Model>[Paths/Dist]<Depvar><Sample>[Log][nov] and <Model>CDF<Depvar><Sample>.
-*** In paper: BernouPathsGWPAllnov, BernouDistGWPAllnov, BernouPathsGWP12KDecLog, BernouDistGWP12KDecLog, BernouCDFGWP12KDec, and,
-*** in combined figure, BernouDistPop12KDecLog, BernouDistGWPcap12KDecLog, BernouDistGDPcap12KDecLog, BernouCDFPop12KDec, BernouCDFGWPcap12KDec, BernouCDFGDPcap12KDec.
+*** In paper: SuperPathsGWPAllnov, SuperDistGWPAllnov, SuperPathsGWP12KDecLog, SuperDistGWP12KDecLog, SuperCDFGWP12KDec, and,
+*** in combined figure, SuperDistPop12KDecLog, SuperDistGWPcap12KDecLog, SuperDistGDPcap12KDecLog, SuperCDFPop12KDec, SuperCDFGWPcap12KDec, SuperCDFGDPcap12KDec.
 ***
 *** Also produces Stata estimation results (.ster) files with names <Model><Depvar><Sample>. Versions with "nl" suffixes add nonlinear derived estimates
 *** (s, B, delta, sigma, median takeoff times and takeoff probabilities) 
@@ -299,7 +323,7 @@ forvalues v=1/4 {
 
 		mat NLSinit = lna, b, nu, gamma
 		forvalues m=`=1+(`v'!=1 & `s'!=4)'/2 {  // do the time-consuming CEV only for regressions reported in text
-			local modelname : word `m' of CEV Bernou
+			local modelname : word `m' of CEV Super
       
 			* diffusion model--try estimating from a few starting points, reflecting and non-reflecting variants
       asdf ${`depvar'var} [aw=HYDEwt], model(bernoudiff) reflect(0) from(NLSinit) iter(`=cond(`m'==1,1000,50)') constraint(`m')
@@ -319,7 +343,7 @@ forvalues v=1/4 {
 			scalar converged = e(converged)
 			scalar reflect   = e(reflect)
 
-      asdfBernouNL  // create new estimation results with nonlinear derived quantities: s, B, delta, sigma, no-take-off probability, median take-off year
+      asdfSuperNL  // create new estimation results with nonlinear derived quantities: s, B, delta, sigma, no-take-off probability, median take-off year
       
       cap scalar mediantakeoff = _b[mediantakeofff]
 			if _rc scalar mediantakeoff = .
@@ -362,40 +386,40 @@ forvalues v=1/4 {
       graph export `modelname'CDF`depvar'`tsamplename'.png, replace width(2680) height(1552)
 		}
     
-    * LR test of CEV vs Bernoulli diffusion, when CEV done
-		cap lrtest Bernou`depvar'`tsamplename'`region' CEV`depvar'`tsamplename'`region', df(1)
+    * LR test of CEV vs superexponential diffusion, when CEV done
+		cap lrtest Super`depvar'`tsamplename'`region' CEV`depvar'`tsamplename'`region', df(1)
 		if !_rc {
-    	estadd scalar chi2CEV  = r(chi2), replace: Bernou`depvar'`tsamplename'`region'nl
-      estadd scalar chi2pCEV = r(p)   , replace: Bernou`depvar'`tsamplename'`region'nl
-			est save Bernou`depvar'`tsamplename'`region'nl, replace
+    	estadd scalar chi2CEV  = r(chi2), replace: Super`depvar'`tsamplename'`region'nl
+      estadd scalar chi2pCEV = r(p)   , replace: Super`depvar'`tsamplename'`region'nl
+			est save Super`depvar'`tsamplename'`region'nl, replace
     }
-		local ests `ests' Bernou`depvar'`tsamplename'`region'nl
+		local ests `ests' Super`depvar'`tsamplename'`region'nl
 	}
   
   * Estimation table for each depvar (only that for GWP in text, Table 2)
 	esttab `ests' using "SDE fits `depvar' `region'.rtf", replace ///
-		keep (lna b nu gamma s B delta sigma Y_b notakeoffprobi mediantakeoffi notakeoffprobf mediantakeofff) ///
-		order(lna b nu gamma s B delta sigma Y_b notakeoffprobi mediantakeoffi notakeoffprobf mediantakeofff) ///
+		keep (lna b nu gamma s B delta sigma Y_b phi_A notakeoffprobi mediantakeoffi notakeoffprobf mediantakeofff) ///
+		order(lna b nu gamma s B delta sigma Y_b phi_A notakeoffprobi mediantakeoffi notakeoffprobf mediantakeofff) ///
 		scalars(reflect converged chi2CEV chi2pCEV ksmirnovp corrp N) noobs ///
 		se nostar varlabels(delta \u0948? sigma \u0963? gamma \u0947? nu \u0957? lna "log a")
 }
 
 * Cross-var table for sample starting 10,000 BCE, decennial after 1950 (Table 3)
-esttab BernouGWP12KDec`region'nl BernouPop12KDec`region'nl BernouGWPcap12KDec`region'nl BernouGDPcap12KDec`region'nl using "SDE fits 12KDecnl `region'.rtf", replace ///
-	keep (lna b nu gamma s B delta sigma Y_b notakeoffprobi mediantakeoffi notakeoffprobf mediantakeofff) ///
-	order(lna b nu gamma s B delta sigma Y_b notakeoffprobi mediantakeoffi notakeoffprobf mediantakeofff) ///
+esttab SuperGWP12KDec`region'nl SuperPop12KDec`region'nl SuperGWPcap12KDec`region'nl SuperGDPcap12KDec`region'nl using "SDE fits 12KDecnl `region'.rtf", replace ///
+	keep (lna b nu gamma s B delta sigma Y_b phi_A notakeoffprobi mediantakeoffi notakeoffprobf mediantakeofff) ///
+	order(lna b nu gamma s B delta sigma Y_b phi_A notakeoffprobi mediantakeoffi notakeoffprobf mediantakeofff) ///
 	scalars(reflect converged chi2CEV chi2pCEV ksmirnovp corrp N) noobs ///
 	se nostar varlabels(delta \u0948? sigma \u0963? gamma \u0947? nu \u0957? lna "log a") ///
 	mtitles(GWP Pop GWPcap GDPcap) nonumbers
 
 * combined figure in paper for Pop, GWPcap, and GDPcap
-graph combine BernouDistPop12KDecLog BernouDistGWPcap12KDecLog BernouDistGDPcap12KDecLog BernouCDFPop12KDec BernouCDFGWPcap12KDec BernouCDFGDPcap12KDec, ///
+graph combine SuperDistPop12KDecLog SuperDistGWPcap12KDecLog SuperDistGDPcap12KDecLog SuperCDFPop12KDec SuperCDFGWPcap12KDec SuperCDFGDPcap12KDec, ///
   cols(2) colfirst xsize(7) ysize(8.5) graphregion(margin(0 2 0 2))
 graph export Combined.png, replace
 
 
 ***
-*** Robustness test: Fit to De Long and Hanson series, as reported in footnote ~41
+*** Robustness test: Fit to De Long and Hanson series, starting both from 1 or 2 million BCE and from 10,000 BCE
 ***
 
 mat init = 0,0,-1,-1
@@ -406,13 +430,8 @@ forvalues s=1/2 {
   foreach GWPvar in GWP GWPDeLong GWPHanson {
     PrepData if `tsample' & (Year<=1950 | inlist(Year,1960,1970,1980,1990,2000)), depvar(`GWPvar') historicpop(PopMcEvedyJones) prehistoricpop(PopDeevey)
     asdf `GWPvar' [aw=HYDEwt], model(bernoudiff) reflect(0) from(init)
-    scalar s = exp([/lna]) * [/gamma] * ([/nu] + [/gamma])
-    nlcom (lna:[/lna]) (b:[/b]) (nu:[/nu]) (gamma:[/gamma]) ///
-                       (s    : exp([/lna]) * [/gamma] * ([/nu] + [/gamma]) / s)  ///
-                       (B    : -1 / [/gamma]) ///
-                       (delta: [/b] * [/gamma]) ///
-                       (sigma: sqrt(2) * exp([/lna]/2) * abs([/gamma])), post
-    eststo est`++e': nlcom (lna:_b[lna]) (b:_b[b]) (nu:_b[nu]) (gamma:_b[gamma]) (s:_b[s]*s) (B:_b[B]) (delta:_b[delta])  (sigma:_b[sigma]), post
+		asdfSuperNL
+		est sto est`++e'
   }
 }
 esttab est? using "vsDeLongHanson.rtf", se replace
@@ -423,25 +442,25 @@ esttab est? using "vsDeLongHanson.rtf", se replace
 ***
 
 PrepData if Year>=-10000 & (Year<=1950 | inlist(Year,1960,1970,1980,1990,2000,2010,2019)), depvar(GWP) historicpop(PopMcEvedyJones) prehistoricpop(PopDeevey)
-est use BernouGWP12KDec
+est use SuperGWP12KDec
 estadd scalar B = -1/[/gamma]
 estadd scalar mediantakeoff = Year[`=_N'] - ln1m([/b] * GWP[`=_N'] ^ (1/[/gamma]) / exp([/lna]) / invgammap(-[/nu], .5)) / [/b]
 mat b = e(b)
 cap drop _GWP
 gen double _GWP = GWP * exp(-HYDEsd)
-eststo lo: asdf _GWP [aw=HYDEwt], model(bernoudiff) reflect(0) from(b)
-estadd scalar B = -1/[/gamma]
-estadd scalar mediantakeoff = Year[`=_N'] - ln1m([/b] * _GWP[`=_N'] ^ (1/[/gamma]) / exp([/lna]) / invgammap(-[/nu], .5)) / [/b]
+asdf _GWP [aw=HYDEwt], model(bernoudiff) reflect(0) from(b)
+asdfSuperNL
+est sto lo
 replace _GWP = GWP * exp(HYDEsd)
-eststo hi: asdf _GWP [aw=HYDEwt], model(bernoudiff) reflect(0) from(b)
-estadd scalar B = -1/[/gamma]
-estadd scalar mediantakeoff = Year[`=_N'] - ln1m([/b] * _GWP[`=_N'] ^ (1/[/gamma]) / exp([/lna]) / invgammap(-[/nu], .5)) / [/b]
-est table BernouGWP12KDec lo hi, stat(B mediantakeoff)
+asdf _GWP [aw=HYDEwt], model(bernoudiff) reflect(0) from(b)
+asdfSuperNL
+est sto hi
+est table SuperGWP12KDecnl lo hi, stat(B mediantakeoff)
 
 
 ***
 *** Compute quantile of each obs in predicted distribution from regression on previous ones
-*** among the saved graphs, BernoudiffPredGWP12KDec used in paper
+*** among the saved graphs, SuperdiffPredGWP12KDec used in paper
 ***
 
 forvalues v=1/1 {
@@ -465,7 +484,7 @@ forvalues v=1/1 {
     mata Y = st_data(., "${`depvar'var}"); tdelta = st_data(., "tdelta"); Ydot = (Y[|2\.|] :/ Y[|.\rows(Y)-1|]) :^ (1 :/ tdelta[|2\.|]) :- 1
 		gen byte sample = _n < _N
 
-    est use Bernou`depvar'`tsamplename'
+    est use Super`depvar'`tsamplename'
     mat init = e(b)
 
     forvalues n=`=_N'(-1)6 {	
@@ -480,10 +499,10 @@ forvalues v=1/1 {
 			if !_rc & e(converged) {
         mat init = e(b)
         asdfSim, t0(`=Year[`n'-1]') y0(`=${`depvar'var}[`n'-1]') t(`=tdelta[`n']') tsamp(1) tres(10000) m(10000)
-        mata ptile_diff[`n'] = mean(Yf :< Y[`n'])
+        mata ptile_diff[`n'] = mean(asdfSimYf :< Y[`n'])
       }
 
-      asdfBernouNL  // get predicted take-off year
+      asdfSuperNL  // get predicted take-off year
       replace mediantakeofff   =  _b[mediantakeofff] in `=`n'-1'
       replace mediantakeofffse = _se[mediantakeofff] in `=`n'-1' 
 
@@ -499,10 +518,10 @@ forvalues v=1/1 {
         if _rc | e(ll) < bestll est restore best
       }
       asdfSim, t0(`=Year') y0(`=${`depvar'var}') t(`=Year[`n']-Year') tsamp(1) tres(10000) m(10000)  // simulate even if no convergence...
-      mata ptile_diffstat[`n'] = mean(Yf() :< Y[`n'])*/
+      mata ptile_diffstat[`n'] = mean(asdfSimYf :< Y[`n'])*/
     }
     
-    est use Bernou`depvar'`tsamplename'`region'nl
+    est use Super`depvar'`tsamplename'`region'nl
     cap drop lnYear
     gen double lnYear = ln(tf + 10 - Year)
     format ptile_* %3.2f
@@ -514,9 +533,9 @@ forvalues v=1/1 {
         legend(off) xscale(noline reverse range(1.75 .)) xlab(none) ymtick(0(.01)1, notick grid glwidth(vthin) glcolor(gs15)) ///
         ylab(0 "0" .1 "0.1" .2 "0.2" .3 "0.3" .4 "0.4" .5 "0.5" .6 "0.6" .7 "0.7" .8 "0.8" .9 "0.9" 1 "1", notick angle(hor) format(%3.1f) grid glwidth(thin) glcolor(gs14)) ///
         plotregion(lwidth(none) margin(0 0 1 0)) graphregion(margin(0 0 0 3)) ytitle("") xtitle(Year) ///
-        name(Bernou`est'Pred`depvar'`tsamplename', replace)
-      graph save "Bernou`est'Pred`depvar'`tsamplename'", replace
-      graph export Bernou`est'Pred`depvar'`tsamplename'.png, replace width(2680) height(1552)
+        name(Super`est'Pred`depvar'`tsamplename', replace)
+      graph save "Super`est'Pred`depvar'`tsamplename'", replace
+      graph export Super`est'Pred`depvar'`tsamplename'.png, replace width(2680) height(1552)
     }
   }
 }
@@ -524,7 +543,7 @@ forvalues v=1/1 {
 * graphs for https://www.openphilanthropy.org/blog/modeling-human-trajectory#comment-793
 mat init = 0,0,-1,-1
 asdf ${GWPvar} [aw=HYDEwt], model(bernoudiff) reflect(0) from(init)
-asdfBernouNL  // get predicted take-off year
+asdfSuperNL  // get predicted take-off year
 replace mediantakeofff   =  _b[mediantakeofff] in `=_N'
 replace mediantakeofffse = _se[mediantakeofff] in `=_N' 
 
@@ -584,7 +603,7 @@ grstyle yesno title_span yes
 grstyle yesno alt_yaxes yes
 graph set window fontface Merriweather
 
-graph use BernouPathsGWP12KDecnov, scheme(blogscheme)
+graph use SuperPathsGWP12KDecnov, scheme(blogscheme)
 gr_edit .style.editstyle margin(10 0 0 0) editcopy
 gr_edit .subtitle.DragBy -.5948275285189022 108.5560239546959
 // gr_edit .plotregion1.plot100.style.editstyle line(color("48 155 166")) editcopy
@@ -593,14 +612,14 @@ gr_edit .plotregion1.plot100.style.editstyle line(width(medium)) editcopy
 // gr_edit .plotregion1.plot100.style.editstyle marker(linestyle(color("48 155 166"))) editcopy
 gr_edit .yaxis1.style.editstyle linestyle(pattern(blank)) editcopy
 gr_edit .yaxis1.style.editstyle majorstyle(tickstyle(show_ticks(yes))) editcopy
-gr_edit .title.text.Arrpush "Sample paths from Bernoulli diffusion model for GWP"
+gr_edit .title.text.Arrpush "Sample paths from superexponential diffusion model for GWP"
 forvalue p=21/99 {
   gr_edit .plotregion1.plot`p'.style.editstyle line(color(none)) editcopy
 }
-graph save BernouPathsGWP12KDecnovBlog, replace
-graph export BernouPathsGWP12KDecnovBlog.png, replace width(1440)
+graph save SuperPathsGWP12KDecnovBlog, replace
+graph export SuperPathsGWP12KDecnovBlog.png, replace width(1440)
 
-graph use BernouDistGWP12KDecLog, scheme(blogscheme)
+graph use SuperDistGWP12KDecLog, scheme(blogscheme)
 gr_edit .style.editstyle margin(5 0 0 0) editcopy
 gr_edit .subtitle.DragBy -.5948275285189022 108.5560239546959
 // gr_edit .plotregion1.plot21.style.editstyle line(color("48 155 166")) editcopy
@@ -610,12 +629,12 @@ gr_edit .plotregion1.plot21.style.editstyle line(width(medium)) editcopy
 gr_edit .yaxis1.style.editstyle linestyle(pattern(blank)) editcopy
 gr_edit .yaxis1.style.editstyle majorstyle(tickstyle(show_ticks(yes))) editcopy
 gr_edit .xaxis1.title.style.editstyle margin(0 0 0 1) editcopy
-gr_edit .title.text.Arrpush "Bernoulli diffusion model for GWP, incorporating"
+gr_edit .title.text.Arrpush "superexponential diffusion model for GWP, incorporating"
 gr_edit .title.text.Arrpush "modeled stochasticity and modeling uncertainty"
-graph save BernouDistGWP12KDecLogBlog, replace
-graph export BernouDistGWP12KDecLogBlog.png, replace width(1440)
+graph save SuperDistGWP12KDecLogBlog, replace
+graph export SuperDistGWP12KDecLogBlog.png, replace width(1440)
 
-graph use BernouDiffPredGWP12KDec, scheme(blogscheme)
+graph use SuperDiffPredGWP12KDec, scheme(blogscheme)
 gr_edit .style.editstyle margin(1 0 0 0) editcopy
 gr_edit .plotregion1.plot1.style.editstyle line(color("48 155 166")) editcopy
 gr_edit .plotregion1.plot1.style.editstyle line(width(medium)) editcopy
@@ -634,20 +653,20 @@ gr_edit .yaxis1.edit_tick 9 0.9 "90%", tickset(major)
 gr_edit .yaxis1.edit_tick 10 1 "100%", tickset(major)
 gr_edit .title.style.editstyle margin(small) editcopy
 gr_edit .title.text.Arrpush Percentile of GWP in distribution when model fit to previous data
-graph export BernouDiffPredGWP12KDecBlog.png, replace width(1440)
+graph export SuperDiffPredGWP12KDecBlog.png, replace width(1440)
 
 
 ***
-*** Monte Carlo test of Bernoulli diffusion model and Bernoulli NLS
+*** Monte Carlo test of superexponential diffusion model and superexponential NLS
 ***
 
 cap program drop sim
 program define sim, rclass
 	drop _all
-	est restore fit
+	est use simfit
   asdfSim, t0(-10000) t(25000) y0(1.6) tsamp(250000) tres(1) m(1) nq(0) ns(1) nov
-	mata keep = ceil(Years * (colmax(selectindex(Y:<100000)) / 12019)); keep[1] = 1  // draw from range < $100 trillion
-	mata Y = Y[keep]; t = t[keep]
+	mata keep = ceil(Years * (colmax(selectindex(asdfSimY:<100000)) / 12019)); keep[1] = 1  // draw from range < $100 trillion
+	mata Y = asdfSimY[keep]; t = asdfSimt[keep]
 	getmata Y t, force replace double
 
 	cap noi asdf Y t, model(bernounls)
@@ -673,27 +692,31 @@ end
 PrepData if Year>=-10000 & (Year<=1950 | inlist(Year,1960,1970,1980,1990,2000,2010,2019)), depvar(GWP) historicpop(PopMcEvedyJones) prehistoricpop(PopDeevey)
 mat init = 0,0,-1,-1
 asdf GWP [aw=HYDEwt], model(bernoudiff) reflect(0) from(init)
-est sto fit
+est save simfit, replace
 mata Years = st_data(., "Year") :+ 10000
 drop _all
 
-simulate Bnls=r(Bnls) convergednls=r(convergednls) Bdiff=r(Bdiff) convergeddiff=r(convergeddiff), reps(5000) seed(2394857): sim
+parallel setclusters 7  // 7 chosen for an 8-core CPU. Choice only affects speed.
+parallel sim, exp(Bnls=r(Bnls) convergednls=r(convergednls) Bdiff=r(Bdiff) convergeddiff=r(convergeddiff)) seed(2394857 1092845 09842375 294385 123409 44848 028502) reps(10000) proc(1) mata: sim
+* simulate Bnls=r(Bnls) convergednls=r(convergednls) Bdiff=r(Bdiff) convergeddiff=r(convergeddiff), reps(10000) seed(2394857): sim
 save "Diffusion vs NLS simulation results", replace
 
-sum if convergeddiff  // summary stats for simualtions in which Bernoulli fit converged
-est resto fit
+sum if convergeddiff  // summary stats for simulations in which superexponential fit converged
+est use simfit
 scalar B = -1/[/gamma]
 mean Bnls if convergednls
 di "NLS bias = " _b[Bnls] - B
 test _b[Bnls] = `=B'
 mean Bdiff if convergeddiff
-di "Bernoulli ML bias = " _b[Bdiff] - B
+di "ML bias = " _b[Bdiff] - B
 test _b[Bdiff] = `=B'
+
+graph set window fontface Cambria
 
 twoway kdensity Bnls if abs(Bnls-B)<=.4, lcolor(gray) || kdensity Bdiff if abs(Bdiff-B)<=.4, lcolor(gray) xline(`=B') legend(off) ///
   plotregion(lwidth(none) margin(zero)) graphregion(margin(3 3 0 0)) yscale(off range(0 9)) xtitle(Estimate of {it:B}) name(DiffvNLSMonteCarlo, replace) ///
   xlabels(.3 "0.3" .4 "0.4" .5 "0.5" .6 "0.6" .7 "0.7" .8 "0.8" .9 "0.9") ///
-  text(5 .61 "Bernoulli diffusion/" "maximum likelihood", just(left) place(e)) ///
+  text(5 .61 "Maximum likelihood", just(left) place(e)) ///
   text(2.5 .28 "Nonlinear least" "squares", just(left) place(e)) ///
   text(8.5 .555 "True value", just(left) place(e))
 graph save DiffvNLSMonteCarlo, replace
