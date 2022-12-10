@@ -1,4 +1,4 @@
-Code and data archive for working paper version of Roodman, "Superexponential"
+Code and data archive for working paper version of Roodman, "Modeling the Human Trajectory"
 
 "GWP.xlsx" exhibits the data set construction and its "Data" tab is accessed directly by "Modeling GWP.do"
 
