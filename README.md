@@ -17,4 +17,4 @@ Code and data archive for working paper version of Roodman, "Modeling the Human 
 "Modeling GWP.do" requires the asdf package, which is in a primitive state but can be installed in Stata with
   "net install asdf, from(https://raw.github.com/droodman/asdf/v0.1.0) replace"
 
-Currently the package requires Stata 16 or later.
+The package requires Stata 16 or later.
