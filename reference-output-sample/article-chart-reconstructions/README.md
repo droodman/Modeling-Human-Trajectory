@@ -1,4 +1,4 @@
-# Reconstructed article charts
+# Article-chart reconstructions
 
 These three SVGs rebuild the article's introductory visual sequence from the
 author's `GWP.xlsx` data and the core `PrepData` transformation in `Model GWP.do`:
@@ -11,7 +11,7 @@ author's `GWP.xlsx` data and the core `PrepData` transformation in `Model GWP.do
 They are independent visual reconstructions, not image copies and not a
 rerun of the paper's full statistical model. The source code is
 `scripts/reconstruct_article_charts.py`.
-# Article-chart reconstructions
+## Color-coded extensions
 
 `01-ordinary-axes.svg`, `02-log-y-exponential-fit.svg`, and
 `03-transformed-time-power-fit.svg` reconstruct the paper-era series ending in
