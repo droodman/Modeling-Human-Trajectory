@@ -1,0 +1,24 @@
+{
+  "source_url": "https://api.worldbank.org/v2/country/WLD/indicator/NY.GDP.MKTP.PP.KD?format=json&date=2019:2025",
+  "retrieved_on": "2026-07-27",
+  "usage": "Growth rates only; chain-linked to Roodman's 2019 GWP level for the three descriptive charts. This does not alter GWP.xlsx or rerun the stochastic model.",
+  "response": [
+    {
+      "page": 1,
+      "pages": 1,
+      "per_page": 100,
+      "total": 7,
+      "sourceid": "2",
+      "lastupdated": "2026-07-13"
+    },
+    [
+      {"indicator":{"id":"NY.GDP.MKTP.PP.KD","value":"GDP, PPP (constant 2021 international $)"},"country":{"id":"1W","value":"World"},"countryiso3code":"WLD","date":"2025","value":180028791385506,"unit":"","obs_status":"","decimal":0},
+      {"indicator":{"id":"NY.GDP.MKTP.PP.KD","value":"GDP, PPP (constant 2021 international $)"},"country":{"id":"1W","value":"World"},"countryiso3code":"WLD","date":"2024","value":174159721560706,"unit":"","obs_status":"","decimal":0},
+      {"indicator":{"id":"NY.GDP.MKTP.PP.KD","value":"GDP, PPP (constant 2021 international $)"},"country":{"id":"1W","value":"World"},"countryiso3code":"WLD","date":"2023","value":168473707388178,"unit":"","obs_status":"","decimal":0},
+      {"indicator":{"id":"NY.GDP.MKTP.PP.KD","value":"GDP, PPP (constant 2021 international $)"},"country":{"id":"1W","value":"World"},"countryiso3code":"WLD","date":"2022","value":163140044693829,"unit":"","obs_status":"","decimal":0},
+      {"indicator":{"id":"NY.GDP.MKTP.PP.KD","value":"GDP, PPP (constant 2021 international $)"},"country":{"id":"1W","value":"World"},"countryiso3code":"WLD","date":"2021","value":157405903630917,"unit":"","obs_status":"","decimal":0},
+      {"indicator":{"id":"NY.GDP.MKTP.PP.KD","value":"GDP, PPP (constant 2021 international $)"},"country":{"id":"1W","value":"World"},"countryiso3code":"WLD","date":"2020","value":147750738921631,"unit":"","obs_status":"","decimal":0},
+      {"indicator":{"id":"NY.GDP.MKTP.PP.KD","value":"GDP, PPP (constant 2021 international $)"},"country":{"id":"1W","value":"World"},"countryiso3code":"WLD","date":"2019","value":152051967520231,"unit":"","obs_status":"","decimal":0}
+    ]
+  ]
+}

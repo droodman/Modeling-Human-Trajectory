@@ -18,3 +18,17 @@ Code and data archive for working paper version of Roodman, "Modeling the Human 
   "net install asdf, from(https://raw.github.com/droodman/asdf/v0.1.0) replace"
 
 The package requires Stata 16 or later.
+
+### Visual GWP extension through 2025
+
+`scripts/render_gwp_charts_2025.py` creates the three article-layout GWP charts
+in `reference-output-sample/`. It leaves `GWP.xlsx` and the Stata model
+unchanged, reads the World Bank source response in
+`data-update/world-bank-gwp-2019-2025.json`, and chain-links its post-2019
+growth to the workbook's 2019 GWP level.
+
+Run with:
+
+```sh
+python3 scripts/render_gwp_charts_2025.py
+```
