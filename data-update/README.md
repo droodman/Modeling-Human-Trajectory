@@ -19,16 +19,23 @@ chain-links its level to the historical series at 2019. The resulting red
 points are therefore a transparent visual update, not a claim that the two
 series have identical level construction.
 
-## Visual comparison
+## Visual comparisons
 
-The archived output on the left is a prior GWP graph from the repository's
-`graphs and estimates.zip`. The right-hand graph is this helper's updated
-version: blue is the original reconstruction through 2019 and red is the
-post-2019 update.
+The review surface is the three-chart sequence used in the article—not the
+single archived repository output. In every after chart, blue is the generated
+historical reconstruction through 2019 and red is the distinct 2020–2025
+extension.
 
-| Archived result | Visual extension |
-| --- | --- |
-| ![Archived GWP graph](../reference-output-sample/GWP.png) | ![GWP through 2025](../reference-output-sample/gwp-through-2025-chain-linked.svg) |
+| View | Before: published 2019 article chart | After: generated 2025 extension |
+| --- | --- | --- |
+| Ordinary axes | <img src="https://coefficientgiving.org/wp-content/uploads/Roodman_GWP_10000_BCE-2019_1.png" width="360" alt="Published ordinary-axes GWP chart through 2019"> | <img src="../reference-output-sample/article-chart-reconstructions/01-ordinary-axes-through-2025.png" width="360" alt="Generated ordinary-axes GWP chart through 2025"> |
+| Log y-axis / exponential fit | <img src="https://coefficientgiving.org/wp-content/uploads/Roodman_GWP_10000_BCE-2019_2.png" width="360" alt="Published log-scale GWP chart through 2019"> | <img src="../reference-output-sample/article-chart-reconstructions/02-log-y-exponential-fit-through-2025.png" width="360" alt="Generated log-scale GWP chart through 2025"> |
+| Transformed time / power fit | <img src="https://coefficientgiving.org/wp-content/uploads/Roodman_GWP_10000_BCE-2019_3.png" width="360" alt="Published transformed-time GWP chart through 2019"> | <img src="../reference-output-sample/article-chart-reconstructions/03-transformed-time-power-fit-through-2025.png" width="360" alt="Generated transformed-time GWP chart through 2025"> |
+
+The published “before” PNGs are deliberately referenced at the author's URLs
+rather than copied into this repository. The generated “after” SVG and PNG
+files are stored locally in
+`reference-output-sample/article-chart-reconstructions/`.
 
 ## Run
 
