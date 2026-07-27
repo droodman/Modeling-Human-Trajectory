@@ -19,16 +19,23 @@ Code and data archive for working paper version of Roodman, "Modeling the Human 
 
 The package requires Stata 16 or later.
 
-## GWP prediction-percentile update through 2025
+## GWP prediction-percentile analysis through 2025
 
 `scripts/update_gwp_prediction_percentiles.py` reproduces the univariate
 Feller-diffusion estimates used by `Model GWP.do`, validates the port against
 the archived full-sample estimates and published 2019 rolling forecast, and
-then adds annual one-step-ahead forecast percentiles for 2020-2025.
+then produces two extensions:
 
-For each new dot, the model is fitted to all observations available through
-the preceding year, 10,000 paths are simulated to the target year with
+- A paper-faithful 2020 checkpoint fitted through 2010 and simulated over the
+  complete 2010-2020 decade.
+- A companion rolling ten-year diagnostic for endpoints 2020-2025.
+
+For each rolling result, the model is fitted to all observations available
+through the ten-year origin, 10,000 paths are simulated to the target year with
 parameter uncertainty, and actual GWP is ranked among the simulated endpoints.
+The adjacent windows overlap and should be read as several views of one recent
+growth episode, not as independent observations.
+
 World Bank series `NY.GDP.MKTP.PP.KD` supplies the recent annual growth rates,
 chain-linked to the workbook's 2019 GWP level. The frozen source response is in
 `data-update/world-bank-gwp-2019-2025.json`.
@@ -39,6 +46,10 @@ Run the update with:
 uv run scripts/update_gwp_prediction_percentiles.py
 ```
 
-The generated figure is
-`reference-output-sample/gwp-prediction-percentiles-through-2025.svg`.
-This update does not revise the paper's takeoff-year or no-takeoff estimates.
+The generated figures are:
+
+- `reference-output-sample/gwp-prediction-percentiles-through-2020.svg`
+- `reference-output-sample/gwp-ten-year-rolling-percentiles-2020-2025.svg`
+
+The proposed reviewer-facing PR description is in `PR_DESCRIPTION.md`. This
+update does not revise the paper's takeoff-year or no-takeoff estimates.
