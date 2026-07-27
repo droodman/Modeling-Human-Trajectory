@@ -12,7 +12,7 @@ from pathlib import Path
 
 import numpy as np
 
-from plot_gwp_extension import original_gwp
+from plot_gwp_extension import extension, original_gwp
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,7 +20,7 @@ OUT = ROOT / "reference-output-sample" / "article-chart-reconstructions"
 WIDTH, HEIGHT = 1200, 1200
 LEFT, RIGHT, TOP, BOTTOM = 140, 65, 115, 200
 PLOT_W, PLOT_H = WIDTH - LEFT - RIGHT, HEIGHT - TOP - BOTTOM
-RED, INK, GRID, PAPER = "#e53b2c", "#222222", "#dedbd5", "#fbfaf7"
+BLUE, RED, INK, GRID, PAPER = "#1f77b4", "#d63d31", "#222222", "#dedbd5", "#fbfaf7"
 
 
 def line_path(xs: np.ndarray, ys: np.ndarray, sx, sy) -> str:
@@ -47,6 +47,8 @@ def chart(
     y_log: bool = False,
     reverse_x: bool = False,
     fit: tuple[np.ndarray, np.ndarray] | None = None,
+    update_x: np.ndarray | None = None,
+    update_y: np.ndarray | None = None,
 ) -> None:
     def scale(value: float, domain: tuple[float, float], span: float, log: bool) -> float:
         lo, hi = domain
@@ -74,19 +76,34 @@ def chart(
         labels.append(f'<text x="{LEFT - 15}" y="{y + 5:.1f}" text-anchor="end" class="tick">{escape(label)}</text>')
 
     points = "".join(
-        f'<circle cx="{sx(float(x)):.1f}" cy="{sy(float(y)):.1f}" r="3.0" class="point"/>'
+        f'<circle cx="{sx(float(x)):.1f}" cy="{sy(float(y)):.1f}" r="3.0" class="history-point"/>'
         for x, y in zip(data_x, data_y)
     )
-    series_path = f'<path d="{line_path(data_x, data_y, sx, sy)}" class="series"/>'
+    series_path = f'<path d="{line_path(data_x, data_y, sx, sy)}" class="history-series"/>'
     fit_path = "" if fit is None else f'<path d="{line_path(fit[0], fit[1], sx, sy)}" class="fit"/>'
+    update_path = "" if update_x is None or update_y is None else f'<path d="{line_path(update_x, update_y, sx, sy)}" class="update-series"/>'
+    update_points = "" if update_x is None or update_y is None else "".join(
+        f'<circle cx="{sx(float(x)):.1f}" cy="{sy(float(y)):.1f}" r="5.0" class="update-point"/>'
+        for x, y in zip(update_x, update_y)
+    )
+    legend = "" if update_x is None else f'''<g>
+<line x1="{LEFT + 15}" y1="{TOP + 20}" x2="{LEFT + 49}" y2="{TOP + 20}" class="history-series"/>
+<circle cx="{LEFT + 32}" cy="{TOP + 20}" r="3" class="history-point"/>
+<text x="{LEFT + 59}" y="{TOP + 25}" class="legend">Original series through 2019</text>
+<circle cx="{LEFT + 32}" cy="{TOP + 46}" r="5" class="update-point"/>
+<text x="{LEFT + 59}" y="{TOP + 51}" class="legend">2020–2025 update, chain-linked at 2019</text>
+</g>'''
     svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{HEIGHT}" viewBox="0 0 {WIDTH} {HEIGHT}">
 <style>
   text {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: {INK}; }}
   .title {{ font-size: 23px; font-weight: 700; }} .subtitle {{ font-size: 13px; fill: #5b5b5b; }}
   .tick {{ font-size: 14px; fill: #555; }} .grid {{ stroke: {GRID}; stroke-width: 1; }}
-  .axis {{ stroke: {INK}; stroke-width: 1.5; }} .point {{ fill: {RED}; }}
-  .series {{ fill: none; stroke: {RED}; stroke-width: 1.4; stroke-opacity: 0.55; }}
-  .fit {{ fill: none; stroke: {RED}; stroke-width: 2.2; stroke-dasharray: 3 7; }} .note {{ font-size: 11px; fill: #5b5b5b; }}
+  .axis {{ stroke: {INK}; stroke-width: 1.5; }} .history-point {{ fill: {BLUE}; }}
+  .history-series {{ fill: none; stroke: {BLUE}; stroke-width: 1.4; stroke-opacity: 0.68; }}
+  .update-series {{ fill: none; stroke: {RED}; stroke-width: 1.7; stroke-opacity: 0.78; }}
+  .update-point {{ fill: {RED}; stroke: {PAPER}; stroke-width: 1.4; }}
+  .fit {{ fill: none; stroke: #5b5b5b; stroke-width: 2.2; stroke-dasharray: 3 7; }}
+  .legend {{ font-size: 12px; }} .note {{ font-size: 11px; fill: #5b5b5b; }}
 </style>
 <defs><clipPath id="plot-area"><rect x="{LEFT}" y="{TOP}" width="{PLOT_W}" height="{PLOT_H}"/></clipPath></defs>
 <rect width="100%" height="100%" fill="{PAPER}"/>
@@ -95,7 +112,7 @@ def chart(
 {''.join(grid_lines)}
 <line x1="{LEFT}" y1="{TOP}" x2="{LEFT}" y2="{TOP + PLOT_H}" class="axis"/>
 <line x1="{LEFT}" y1="{TOP + PLOT_H}" x2="{LEFT + PLOT_W}" y2="{TOP + PLOT_H}" class="axis"/>
-<g clip-path="url(#plot-area)">{series_path}{fit_path}{points}</g>{''.join(labels)}
+<g clip-path="url(#plot-area)">{series_path}{fit_path}{points}{update_path}{update_points}</g>{''.join(labels)}{legend}
 <text x="{LEFT + PLOT_W / 2:.1f}" y="{TOP + PLOT_H + 77}" text-anchor="middle" class="tick">{escape(x_label)}</text>
 <text x="33" y="{TOP + PLOT_H / 2:.1f}" transform="rotate(-90 33 {TOP + PLOT_H / 2:.1f})" text-anchor="middle" class="tick">{escape(y_label)}</text>
 <text x="{LEFT}" y="{HEIGHT - 48}" class="note">Reconstructed from Roodman GWP.xlsx and the data-preparation logic in Model GWP.do.</text>
@@ -109,6 +126,10 @@ def main() -> None:
     series = original_gwp()
     years = series["year"].to_numpy()
     gwp = series["gwp"].to_numpy()
+    updated = extension(series)
+    recent = updated.loc[updated["year"] >= 2020]
+    recent_years = recent["year"].to_numpy()
+    recent_gwp = recent["chain_linked_gwp"].to_numpy()
 
     chart(
         "01-ordinary-axes.svg",
@@ -162,6 +183,40 @@ def main() -> None:
         y_log=True,
         reverse_x=True,
         fit=(fit_distance, np.exp(np.polyval(power, np.log(fit_distance)))),
+    )
+
+    # Keep the 2019 reconstructions above intact; these are the deliberately
+    # color-separated extensions for comparing the original source with new data.
+    chart(
+        "01-ordinary-axes-through-2025.svg",
+        "Global world product, 10,000 BCE–2025",
+        "Blue: original reconstruction through 2019. Red: World Bank update, chain-linked to the original level.",
+        years, gwp, (-10500, 2500), (0, 100000),
+        [(-10000, "10,000 BCE"), (-5000, "5,000 BCE"), (0, "1 CE"), (1000, "1000"), (2000, "2000")],
+        [(0, "0"), (20000, "20,000"), (40000, "40,000"), (60000, "60,000"), (80000, "80,000"), (100000, "100,000")],
+        "Year", "GWP (1990 international-$ billions)", update_x=recent_years, update_y=recent_gwp,
+    )
+    chart(
+        "02-log-y-exponential-fit-through-2025.svg",
+        "The same series on a logarithmic vertical axis, through 2025",
+        "Blue: historical series. Red: 2020–2025 update. The dotted line is the historical exponential fit.",
+        years, gwp, (-10500, 2500), (1, 100000),
+        [(-10000, "10,000 BCE"), (-5000, "5,000 BCE"), (0, "1 CE"), (1000, "1000"), (2000, "2000")],
+        [(1, "$1b"), (10, "$10b"), (100, "$100b"), (1000, "$1t"), (10000, "$10t"), (100000, "$100t")],
+        "Year", "GWP (1990 international dollars, log scale)", y_log=True,
+        fit=(fit_years, np.exp(np.polyval(exponential, fit_years))), update_x=recent_years, update_y=recent_gwp,
+    )
+    chart(
+        "03-transformed-time-power-fit-through-2025.svg",
+        "The series on Roodman’s transformed time axis, through 2025",
+        "Blue: historical series. Red: 2020–2025 update. The dotted line is the historical power-law fit.",
+        years_to_takeoff, gwp, (20, 15000), (1, 100000),
+        [(10000, "10,000"), (1000, "1,000"), (100, "100"), (10, "10")],
+        [(1, "$1b"), (10, "$10b"), (100, "$100b"), (1000, "$1t"), (10000, "$10t"), (100000, "$100t")],
+        "Years until 2047 (log scale, reversed)", "GWP (1990 international dollars, log scale)",
+        x_log=True, y_log=True, reverse_x=True,
+        fit=(fit_distance, np.exp(np.polyval(power, np.log(fit_distance)))),
+        update_x=takeoff - recent_years, update_y=recent_gwp,
     )
 
 
