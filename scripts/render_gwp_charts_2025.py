@@ -171,13 +171,17 @@ def main() -> None:
     recent_gwp = recent["chain_linked_gwp"].to_numpy()
 
     exponential = np.polyfit(years, np.log(gwp), 1)
-    fit_years = np.linspace(years.min(), years.max(), 600)
+    # Keep the coefficients fitted to the original through-2019 observations,
+    # but project the unchanged fit through the added 2025 endpoint.
+    fit_years = np.linspace(years.min(), recent_years.max(), 600)
     exponential_fit = np.exp(np.polyval(exponential, fit_years))
 
     takeoff = 2047
     years_to_takeoff = takeoff - years
     power = np.polyfit(np.log(years_to_takeoff), np.log(gwp), 1)
-    fit_distance = np.geomspace(years_to_takeoff.min(), years_to_takeoff.max(), 600)
+    fit_distance = np.geomspace(
+        takeoff - recent_years.max(), years_to_takeoff.max(), 600
+    )
     power_fit = np.exp(np.polyval(power, np.log(fit_distance)))
 
     # Three visual extensions in the published layout: no new framing, just red observations.

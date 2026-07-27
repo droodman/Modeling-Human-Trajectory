@@ -25,7 +25,9 @@ The package requires Stata 16 or later.
 in `reference-output-sample/`. It leaves `GWP.xlsx` and the Stata model
 unchanged, reads the World Bank source response in
 `data-update/world-bank-gwp-2019-2025.json`, and chain-links its post-2019
-growth to the workbook's 2019 GWP level.
+growth to the workbook's 2019 GWP level. The fitted curves retain coefficients
+estimated from the original through-2019 series and extrapolate those unchanged
+fits through 2025; the added observations are not used to refit them.
 
 Run with:
 
