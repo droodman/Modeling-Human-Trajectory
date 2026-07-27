@@ -24,11 +24,11 @@ The package requires Stata 16 or later.
 `scripts/update_gwp_prediction_percentiles.py` reproduces the univariate
 Feller-diffusion estimates used by `Model GWP.do`, validates the port against
 the archived full-sample estimates and published 2019 rolling forecast, and
-then produces two extensions:
+then produces a main rolling ten-year extension and two alternatives:
 
-- A paper-faithful 2020 checkpoint fitted through 2010 and simulated over the
-  complete 2010-2020 decade.
-- A companion rolling ten-year diagnostic for endpoints 2020-2025.
+- Rolling ten-year forecasts for endpoints 2020-2025.
+- Annual one-step forecasts with yearly refitting.
+- Fixed-2010 forecasts that preserve one information set.
 
 For each rolling result, the model is fitted to all observations available
 through the ten-year origin, 10,000 paths are simulated to the target year with
@@ -46,10 +46,14 @@ Run the update with:
 uv run scripts/update_gwp_prediction_percentiles.py
 ```
 
-The generated figures are:
+The generated main figure is:
 
-- `reference-output-sample/gwp-prediction-percentiles-through-2020.svg`
-- `reference-output-sample/gwp-ten-year-rolling-percentiles-2020-2025.svg`
+- `reference-output-sample/gwp-prediction-percentiles-through-2025.svg`
 
-The proposed reviewer-facing PR description is in `PR_DESCRIPTION.md`. This
-update does not revise the paper's takeoff-year or no-takeoff estimates.
+The alternative figures are:
+
+- `reference-output-sample/gwp-prediction-percentiles-alternative-annual.svg`
+- `reference-output-sample/gwp-prediction-percentiles-alternative-fixed-2010.svg`
+
+The reviewer-facing PR description is in `PR_DESCRIPTION.md`. This update does
+not revise the paper's takeoff-year or no-takeoff estimates.

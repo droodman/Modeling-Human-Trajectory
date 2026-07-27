@@ -1,133 +1,145 @@
-# Extend GWP prediction-percentile analysis through 2025
-
 ## Summary
 
-This PR reproduces the stochastic GWP model behind the paper's rolling
-prediction-percentile chart and extends the analysis in two ways:
+This draft extends the article's **"Percentile of GWP in distribution when
+model fit to previous data"** chart from 2019 through 2025.
 
-1. It adds **2020** as the next complete decennial observation after 2010.
-2. It adds a separate **rolling ten-year analysis for 2020-2025**, allowing
-   recent outcomes to be compared over a consistent forecast horizon.
+The new script ports the univariate Feller-diffusion likelihood and simulation
+used by `Model GWP.do`/`asdf`, validates that port against archived results, and
+then calculates rolling ten-year forecast percentiles for six new annual
+observations.
 
-The two results are presented separately because the first continues the
-paper's preferred modern observation cadence, while the second is a new
-diagnostic using overlapping ten-year windows.
+## Before and after
 
-## What the percentile means
+| Published chart | Updated draft |
+| --- | --- |
+| ![Published prediction-percentile chart](https://coefficientgiving.org/wp-content/uploads/BernouDiffPredGWP12KDecBlog.png) | ![Prediction-percentile chart through 2025](https://raw.githubusercontent.com/llj0824/Modeling-Human-Trajectory/agent/update-gwp-percentiles-2025/reference-output-sample/gwp-prediction-percentiles-through-2025.svg) |
 
-For each forecast:
+The published historical dots remain fixed at their displayed values. Red
+identifies the added 2020-2025 rolling ten-year observations.
 
-1. Fit the stochastic GWP model using only information available through the
-   starting year.
-2. Generate 10,000 possible ten-year trajectories.
-3. Locate actual GWP at the end of the decade within those simulated endpoints.
-4. Plot that rank as the actual GWP percentile.
+## How to read each point
 
-```mermaid
-flowchart LR
-    A[Prior GWP data] --> B[Fit model]
-    B --> C[Simulate ten years]
-    C --> D[Rank actual endpoint]
-    D --> E[Plot percentile]
-```
+Each historical dot is one rolling out-of-sample check:
 
-A result of 15% means actual GWP exceeded approximately 15% of the model's
-simulated endpoints and fell below approximately 85%.
+1. Fit the model to all GWP observations through the preceding plotted year.
+2. Start every simulated path at that preceding year's actual GWP.
+3. Simulate 10,000 paths to the target year, drawing model parameters from
+   their estimated covariance matrix.
+4. Rank the target year's actual GWP among the 10,000 simulated endpoints.
 
-## Figure 1: Original series with the 2020 checkpoint
+The historical sequence means:
 
-The original rolling prediction-percentile figure is preserved through 2019.
-One new dot is added:
+| Dot | Fit data through | Simulate |
+| --- | --- | --- |
+| 1600 | 1500 | 1500-1600 |
+| 1700 | 1600 | 1600-1700 |
+| 1820 | 1700 | 1700-1820 |
+| 1870 | 1820 | 1820-1870 |
+| 1913 | 1870 | 1870-1913 |
+| 1940 | 1913 | 1913-1940 |
+| 1950 | 1940 | 1940-1950 |
+| 1960 | 1950 | 1950-1960 |
+| 1970 | 1960 | 1960-1970 |
+| 1980 | 1970 | 1970-1980 |
+| 1990 | 1980 | 1980-1990 |
+| 2000 | 1990 | 1990-2000 |
+| 2010 | 2000 | 2000-2010 |
+| 2019 | 2010 | 2010-2019 |
 
-| Dot | Fit through | Simulate | Horizon | Actual percentile |
-| ---: | ---: | ---: | ---: | ---: |
-| 2019 | 2010 | 2010-2019 | 9 years | 20.71% |
-| **2020** | **2010** | **2010-2020** | **10 years** | **13.87%** |
+The added dots hold the forecast horizon constant at ten years:
 
-The 2020 observation completes the next full ten-year interval after 2010. It
-continues the pattern identified in the paper: recent GWP has been lower than
-the model's historical acceleration mechanism predicted.
+| Dot | Fit data through | Simulate | Actual GWP percentile |
+| --- | --- | --- | ---: |
+| 2020 | 2010 | 2010-2020 | 13.87% |
+| 2021 | 2011 | 2011-2021 | 15.42% |
+| 2022 | 2012 | 2012-2022 | 15.32% |
+| 2023 | 2013 | 2013-2023 | 15.79% |
+| 2024 | 2014 | 2014-2024 | 15.35% |
+| 2025 | 2015 | 2015-2025 | 14.61% |
 
-![Original prediction-percentile series extended with the 2020 checkpoint](reference-output-sample/gwp-prediction-percentiles-through-2020.svg)
+Adjacent windows share nine of their ten years. The six dots should therefore
+be read as several views of one sustained recent growth episode, not as six
+independent observations.
 
-## Figure 2: Rolling ten-year forecasts through 2025
+A 15% dot means actual GWP was greater than about 15% of the simulated
+endpoints and lower than about 85%. It does not mean the model assigned that
+year a 15% probability.
 
-A companion chart applies a constant ten-year forecast horizon to each recent
-endpoint:
+## Data and method
 
-| Dot | Fit through | Simulate | Horizon | Actual percentile |
-| ---: | ---: | ---: | ---: | ---: |
-| 2020 | 2010 | 2010-2020 | 10 years | 13.87% |
-| 2021 | 2011 | 2011-2021 | 10 years | 15.42% |
-| 2022 | 2012 | 2012-2022 | 10 years | 15.32% |
-| 2023 | 2013 | 2013-2023 | 10 years | 15.79% |
-| 2024 | 2014 | 2014-2024 | 10 years | 15.35% |
-| 2025 | 2015 | 2015-2025 | 10 years | 14.61% |
+The port reproduces the archived parameter estimates:
 
-![Actual GWP percentiles for rolling ten-year forecasts ending in 2020 through 2025](reference-output-sample/gwp-ten-year-rolling-percentiles-2020-2025.svg)
-
-## Interpretation
-
-Across every ten-year window ending from 2020 through 2025, actual GWP lands
-near the 14th-16th percentile of the model's simulated distribution.
-
-The result suggests that the recent economy has remained persistently below
-the model-implied trajectory. Because adjacent windows share nine of their ten
-years, the cluster should be interpreted as **one sustained period of
-lower-than-predicted growth viewed from several nearby starting points**.
-
-COVID contributes to the low 2020 endpoint, but does not by itself explain the
-finding. Similar percentiles remain visible in windows ending through 2025.
-
-## Reproduction validation
-
-Before producing the extension, the implementation reproduces the archived
-Stata estimates closely:
-
-| Parameter | Reproduction | Archived estimate |
+| Parameter | Archived Stata estimate | Python reproduction |
 | --- | ---: | ---: |
-| `log a` | -12.6613 | -12.66 |
-| `b` | 0.000018571 | 0.0000186 |
-| `nu` | -23.7788 | -23.78 |
-| `gamma` | -1.81289 | -1.813 |
+| `ln(a)` | -12.66 | -12.661317 |
+| `b` | 0.0000186 | 0.000018571 |
+| `nu` | -23.78 | -23.7788 |
+| `gamma` | -1.813 | -1.81289 |
 
-It also reproduces the published 2019 rolling forecast percentile:
+- Historical GWP and uncertainty weights are reconstructed from `GWP.xlsx`
+  using the same rules as the first `PrepData` pass in `Model GWP.do`.
+- The update uses World Bank indicator `NY.GDP.MKTP.PP.KD`, GDP at constant
+  2021 PPP, retrieved July 27, 2026.
+- Each forecast uses 10,000 paths and 10,000 Euler steps, including parameter
+  uncertainty.
 
-| Result | Reproduction | Published figure |
-| --- | ---: | ---: |
-| 2019 percentile | 20.71% | approximately 20.8% |
+## Validation
 
-These checks establish that the extension is using the same model mechanics
-before introducing newer GWP observations.
+Before generating the new dots, the script reproduces the 2019 rolling
+forecast at **20.71%**, consistent with the published dot at approximately 21%.
 
-## Recent data
+Monte Carlo standard errors for the six main percentiles are 0.35-0.36
+percentage points.
 
-World Bank series `NY.GDP.MKTP.PP.KD` supplies annual world GDP growth for the
-update. These values are chain-linked to the paper workbook's 2019 GWP level.
+## Alternative forecast constructions
 
-The frozen source response is stored in:
+The main chart uses a constant ten-year horizon. Two alternatives answer
+different questions:
 
-`data-update/world-bank-gwp-2019-2025.json`
+| Fixed 2010 information set | Annual one-step refits |
+| --- | --- |
+| ![Fixed-2010 prediction percentiles](https://raw.githubusercontent.com/llj0824/Modeling-Human-Trajectory/agent/update-gwp-percentiles-2025/reference-output-sample/gwp-prediction-percentiles-alternative-fixed-2010.svg) | ![Annual one-step prediction percentiles](https://raw.githubusercontent.com/llj0824/Modeling-Human-Trajectory/agent/update-gwp-percentiles-2025/reference-output-sample/gwp-prediction-percentiles-alternative-annual.svg) |
+
+### Fixed 2010 information set
+
+This version asks how each eventual outcome compares with the distribution
+implied by information available in 2010. The model is fitted once, every path
+starts at actual 2010 GWP, and the simulation horizon lengthens with each
+target.
+
+| Dot | Fit data through | Simulate | Actual GWP percentile |
+| --- | --- | --- | ---: |
+| 2020 | 2010 | 2010-2020 | 14.97% |
+| 2021 | 2010 | 2010-2021 | 15.75% |
+| 2022 | 2010 | 2010-2022 | 14.57% |
+| 2023 | 2010 | 2010-2023 | 13.53% |
+| 2024 | 2010 | 2010-2024 | 12.66% |
+| 2025 | 2010 | 2010-2025 | 11.71% |
+
+### Annual one-step refits
+
+This version asks how the next year's outcome compares with a model refitted
+through the immediately preceding year.
+
+| Dot | Fit data through | Simulate | Actual GWP percentile |
+| --- | --- | --- | ---: |
+| 2020 | 2019 | 2019-2020 | 18.07% |
+| 2021 | 2020 | 2020-2021 | 50.54% |
+| 2022 | 2021 | 2021-2022 | 39.57% |
+| 2023 | 2022 | 2022-2023 | 38.16% |
+| 2024 | 2023 | 2023-2024 | 37.91% |
+| 2025 | 2024 | 2024-2025 | 38.44% |
+
+The alternatives are included for comparison and are not used for the red dots
+in the main updated chart.
 
 ## Deliberate limitations
 
-- The rolling ten-year windows overlap and must not be treated as statistically
-  independent observations.
-- Annual starting points from 2011-2015 make Figure 2 a new robustness
-  analysis, not a literal continuation of the paper's preferred decennial
-  sample.
-- The results measure where actual GWP falls within model-generated
-  distributions. They do not identify the causes of slower growth.
-- This PR does not revise the median takeoff year, probability of no takeoff,
-  or the paper's other stochastic-model estimates.
-- The five-year 2020-2025 forecast and annual one-step forecasts are excluded
-  from the main presentation because their horizons are not comparable with
-  the ten-year results.
-
-## Files changed
-
-- `scripts/update_gwp_prediction_percentiles.py`
-- `data-update/world-bank-gwp-2019-2025.json`
-- `reference-output-sample/gwp-prediction-percentiles-through-2020.svg`
-- `reference-output-sample/gwp-ten-year-rolling-percentiles-2020-2025.svg`
-- `README.md`
+- Annual starting observations from 2011-2015 make the main extension a new
+  rolling-horizon diagnostic rather than a literal continuation of the paper's
+  preferred decennial sample.
+- The overlapping ten-year windows are not statistically independent.
+- The percentiles locate actual GWP within model-generated distributions; they
+  do not identify the causes of slower growth.
+- This PR does not revise the paper's median takeoff year, probability of no
+  takeoff, or other stochastic-model estimates.

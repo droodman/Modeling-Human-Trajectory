@@ -11,8 +11,8 @@
 
 The script ports the univariate Feller-diffusion likelihood and simulation
 used by Model GWP.do/asdf. It validates the port against archived full-sample
-estimates and the published 2019 rolling forecast before calculating the next
-complete decennial checkpoint and a companion rolling ten-year diagnostic.
+estimates and the published 2019 rolling forecast before calculating rolling
+ten-year forecasts and two alternative forecast constructions.
 """
 
 from __future__ import annotations
@@ -29,15 +29,20 @@ from scipy import optimize, special
 ROOT = Path(__file__).resolve().parents[1]
 WORKBOOK = ROOT / "GWP.xlsx"
 WORLD_BANK = ROOT / "data-update" / "world-bank-gwp-2019-2025.json"
-HISTORICAL_OUTPUT = (
+MAIN_OUTPUT = (
     ROOT
     / "reference-output-sample"
-    / "gwp-prediction-percentiles-through-2020.svg"
+    / "gwp-prediction-percentiles-through-2025.svg"
 )
-ROLLING_OUTPUT = (
+ANNUAL_ALTERNATIVE_OUTPUT = (
     ROOT
     / "reference-output-sample"
-    / "gwp-ten-year-rolling-percentiles-2020-2025.svg"
+    / "gwp-prediction-percentiles-alternative-annual.svg"
+)
+FIXED_ALTERNATIVE_OUTPUT = (
+    ROOT
+    / "reference-output-sample"
+    / "gwp-prediction-percentiles-alternative-fixed-2010.svg"
 )
 
 # Digitized from the author's published 1440 x 1047 PNG. Keeping these values
@@ -407,42 +412,6 @@ def annual_gwp() -> pd.DataFrame:
     )
 
 
-def calculate_decennial_checkpoint(q_start: np.ndarray) -> pd.DataFrame:
-    """Calculate the next complete post-2010 decennial observation."""
-    historical = model_frame(include_update=False)
-    prior = historical.loc[historical["year"] <= 2010].copy()
-    levels = pd.concat(
-        [
-            prior.loc[prior["year"] == 2010, ["year", "GWP"]],
-            annual_gwp(),
-        ],
-        ignore_index=True,
-    ).set_index("year")["GWP"]
-    fitted = fit(prior, q_start)
-    percentile = simulate_percentile(
-        fitted,
-        prior,
-        start_value=float(levels.loc[2010]),
-        observed_value=float(levels.loc[2020]),
-        horizon=10.0,
-        seed=902381476 + 2020,
-    )
-    return pd.DataFrame(
-        [
-            {
-                "year": 2020,
-                "fit_through": 2010,
-                "horizon": 10,
-                "gwp": float(levels.loc[2020]),
-                "percentile": percentile,
-                "mc_standard_error": np.sqrt(
-                    percentile * (1.0 - percentile) / 10000
-                ),
-            }
-        ]
-    )
-
-
 def calculate_rolling_decade(q_start: np.ndarray) -> pd.DataFrame:
     """Calculate overlapping ten-year forecasts ending in 2020-2025."""
     base = model_frame(include_update=False)
@@ -491,7 +460,73 @@ def calculate_rolling_decade(q_start: np.ndarray) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def render_historical_svg(update: pd.DataFrame) -> None:
+def calculate_annual_one_step(q_start: np.ndarray) -> pd.DataFrame:
+    """Calculate annual one-step forecasts with yearly refitting."""
+    updated = model_frame(include_update=True)
+    rows = []
+    for target_year in range(2020, 2026):
+        prior = updated.loc[updated["year"] < target_year].copy()
+        observed = updated.loc[updated["year"] == target_year].iloc[0]
+        fitted = fit(prior, q_start)
+        percentile = simulate_percentile(
+            fitted,
+            prior,
+            start_value=float(prior.iloc[-1]["GWP"]),
+            observed_value=float(observed["GWP"]),
+            horizon=float(target_year - prior.iloc[-1]["year"]),
+            seed=902381476 + target_year,
+        )
+        rows.append(
+            {
+                "year": target_year,
+                "fit_through": target_year - 1,
+                "horizon": 1,
+                "gwp": float(observed["GWP"]),
+                "percentile": percentile,
+                "mc_standard_error": np.sqrt(
+                    percentile * (1.0 - percentile) / 10000
+                ),
+            }
+        )
+        q_start = fitted.x
+    return pd.DataFrame(rows)
+
+
+def calculate_fixed_2010() -> pd.DataFrame:
+    """Calculate forecasts that preserve the 2010 information set."""
+    historical = model_frame(include_update=False)
+    updated = model_frame(include_update=True)
+    prior = historical.loc[historical["year"] <= 2010].copy()
+    fitted = fit(prior)
+    start_value = float(prior.iloc[-1]["GWP"])
+
+    rows = []
+    for target_year in range(2020, 2026):
+        observed = updated.loc[updated["year"] == target_year].iloc[0]
+        percentile = simulate_percentile(
+            fitted,
+            prior,
+            start_value=start_value,
+            observed_value=float(observed["GWP"]),
+            horizon=float(target_year - 2010),
+            seed=902381476,
+        )
+        rows.append(
+            {
+                "year": target_year,
+                "fit_through": 2010,
+                "horizon": target_year - 2010,
+                "gwp": float(observed["GWP"]),
+                "percentile": percentile,
+                "mc_standard_error": np.sqrt(
+                    percentile * (1.0 - percentile) / 10000
+                ),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def render_historical_svg(update: pd.DataFrame, output: Path) -> None:
     width, height = 1440, 1047
     left, right, top, bottom = 12, 125, 88, 85
     plot_width = width - left - right
@@ -550,7 +585,14 @@ def render_historical_svg(update: pd.DataFrame) -> None:
         f'class="historical-label">{year}</text>'
         for year, value in historical
     )
-    offsets = {2020: (8, 27, "start")}
+    offsets = {
+        2020: (8, 27, "start"),
+        2021: (7, -13, "start"),
+        2022: (-8, -19, "end"),
+        2023: (8, 33, "start"),
+        2024: (10, -22, "start"),
+        2025: (9, 18, "start"),
+    }
     update_labels = "".join(
         f'<text x="{sx(row.year) + offsets[row.year][0]:.2f}" '
         f'y="{sy(row.percentile) + offsets[row.year][1]:.2f}" '
@@ -588,122 +630,39 @@ def render_historical_svg(update: pd.DataFrame) -> None:
 <text x="{left + plot_width / 2:.2f}" y="{height - 24}" text-anchor="middle" class="axis-label">Year</text>
 </svg>
 """
-    HISTORICAL_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    HISTORICAL_OUTPUT.write_text(svg)
-
-
-def render_rolling_svg(update: pd.DataFrame) -> None:
-    width, height = 1440, 720
-    left, right, top, bottom = 100, 90, 85, 105
-    plot_width = width - left - right
-    plot_height = height - top - bottom
-    teal, ink = "#309ba6", "#2e2d2c"
-
-    def sx(year: float) -> float:
-        return left + (year - 2020.0) / 5.0 * plot_width
-
-    def sy(percentile: float) -> float:
-        return top + (1.0 - percentile) * plot_height
-
-    rows = list(
-        update[["year", "percentile"]].itertuples(index=False, name=None)
-    )
-    path = " ".join(
-        ("M" if index == 0 else "L")
-        + f" {sx(float(year)):.2f} {sy(float(percentile)):.2f}"
-        for index, (year, percentile) in enumerate(rows)
-    )
-    grid = "".join(
-        f'<line x1="{left}" y1="{sy(value):.2f}" '
-        f'x2="{left + plot_width}" y2="{sy(value):.2f}" class="grid"/>'
-        for value in np.arange(0.0, 1.01, 0.1)
-    )
-    y_ticks = "".join(
-        f'<text x="{left - 18}" y="{sy(value) + 9:.2f}" '
-        f'text-anchor="end" class="tick">{value * 100:.0f}%</text>'
-        for value in np.arange(0.0, 1.01, 0.1)
-    )
-    x_ticks = "".join(
-        f'<text x="{sx(year):.2f}" y="{top + plot_height + 43}" '
-        f'text-anchor="middle" class="tick">{year}</text>'
-        for year in range(2020, 2026)
-    )
-    points = "".join(
-        f'<circle cx="{sx(row.year):.2f}" cy="{sy(row.percentile):.2f}" '
-        f'r="7" class="point"/>'
-        for row in update.itertuples(index=False)
-    )
-    labels = "".join(
-        f'<text x="{sx(row.year):.2f}" y="{sy(row.percentile) - 16:.2f}" '
-        f'text-anchor="middle" class="value-label">'
-        f'{row.percentile * 100:.2f}%</text>'
-        for row in update.itertuples(index=False)
-    )
-
-    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
-<style>
-  text {{ font-family: Georgia, "Times New Roman", serif; fill: {ink}; }}
-  .title {{ font-size: 36px; }}
-  .axis-label {{ font-size: 30px; }}
-  .tick {{ font-size: 24px; }}
-  .value-label {{ font-size: 21px; fill: {teal}; }}
-  .grid {{ stroke: #dedede; stroke-width: 1.25; }}
-  .series {{ fill: none; stroke: {teal}; stroke-width: 3; }}
-  .point {{ fill: {teal}; stroke: white; stroke-width: 1.5; }}
-</style>
-<rect width="{width}" height="{height}" fill="white"/>
-<text x="{left}" y="49" class="title">Actual GWP percentile in rolling ten-year forecasts</text>
-{grid}
-<line x1="{left}" y1="{top}" x2="{left}" y2="{top + plot_height}" stroke="{ink}" stroke-width="1.5"/>
-<line x1="{left}" y1="{top + plot_height}" x2="{left + plot_width}" y2="{top + plot_height}" stroke="{ink}" stroke-width="1.5"/>
-<path d="{path}" class="series"/>
-{points}
-{labels}
-{y_ticks}
-{x_ticks}
-<text x="{left + plot_width / 2:.2f}" y="{height - 26}" text-anchor="middle" class="axis-label">Forecast endpoint</text>
-</svg>
-"""
-    ROLLING_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    ROLLING_OUTPUT.write_text(svg)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(svg)
 
 
 def main() -> None:
     historical = model_frame(include_update=False)
     full_fit, standard_errors, percentile_2019 = validate_port(historical)
-    checkpoint = calculate_decennial_checkpoint(full_fit.x.copy())
     rolling = calculate_rolling_decade(full_fit.x.copy())
-    render_historical_svg(checkpoint)
-    render_rolling_svg(rolling)
+    annual = calculate_annual_one_step(full_fit.x.copy())
+    fixed = calculate_fixed_2010()
+    render_historical_svg(rolling, MAIN_OUTPUT)
+    render_historical_svg(annual, ANNUAL_ALTERNATIVE_OUTPUT)
+    render_historical_svg(fixed, FIXED_ALTERNATIVE_OUTPUT)
 
     print("Validated full-sample estimates:")
     print("  theta:", np.array2string(unpack(full_fit.x), precision=8))
     print("  standard errors:", np.array2string(standard_errors, precision=8))
     print(f"Validated 2019 holdout percentile: {percentile_2019:.2%}")
-    print("\nAdded decennial checkpoint:")
-    print(
-        checkpoint.to_string(
-            index=False,
-            formatters={
-                "gwp": "{:,.3f}".format,
-                "percentile": "{:.2%}".format,
-                "mc_standard_error": "{:.2%}".format,
-            },
-        )
-    )
-    print("\nAdded rolling ten-year forecasts:")
-    print(
-        rolling.to_string(
-            index=False,
-            formatters={
-                "gwp": "{:,.3f}".format,
-                "percentile": "{:.2%}".format,
-                "mc_standard_error": "{:.2%}".format,
-            },
-        )
-    )
-    print(f"\nWrote {HISTORICAL_OUTPUT.relative_to(ROOT)}")
-    print(f"Wrote {ROLLING_OUTPUT.relative_to(ROOT)}")
+    formatter = {
+        "gwp": "{:,.3f}".format,
+        "percentile": "{:.2%}".format,
+        "mc_standard_error": "{:.2%}".format,
+    }
+    for label, result in (
+        ("Rolling ten-year forecasts", rolling),
+        ("Annual one-step alternative", annual),
+        ("Fixed-2010 alternative", fixed),
+    ):
+        print(f"\n{label}:")
+        print(result.to_string(index=False, formatters=formatter))
+    print(f"\nWrote {MAIN_OUTPUT.relative_to(ROOT)}")
+    print(f"Wrote {ANNUAL_ALTERNATIVE_OUTPUT.relative_to(ROOT)}")
+    print(f"Wrote {FIXED_ALTERNATIVE_OUTPUT.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":
