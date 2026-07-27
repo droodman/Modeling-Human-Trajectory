@@ -5,7 +5,7 @@
 The **before** images are David Roodman's published 2019 charts. They remain
 hosted at the article's original URLs; they are not files in this repository.
 The **after** images below are programmatically generated local files in this
-directory. Each keeps the reconstructed 2019 history in blue and adds a red
+directory. Each keeps the reconstructed 2019 history in the article's teal and adds a red
 2020–2025 segment.
 
 | View | Before: published 2019 chart | After: generated 2025 extension |
@@ -16,7 +16,7 @@ directory. Each keeps the reconstructed 2019 history in blue and adds a red
 
 The local `01-ordinary-axes.svg`, `02-log-y-exponential-fit.svg`, and
 `03-transformed-time-power-fit.svg` are generated 2019 reconstructions used
-as the blue baseline. They are not copies of the published PNGs.
+as the teal baseline. They are not copies of the published PNGs.
 
 ## How the after charts are made
 
@@ -35,7 +35,7 @@ rerun of the paper's full statistical model. The source code is
 
 `01-ordinary-axes.svg`, `02-log-y-exponential-fit.svg`, and
 `03-transformed-time-power-fit.svg` reconstruct the paper-era series ending in
-2019. Their marks are blue.
+2019. Their marks use the article's teal.
 
 The matching `*-through-2025.svg` files add a visually distinct red layer for
 2020–2025. Those points use World Bank world PPP GDP growth, chain-linked to

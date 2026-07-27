@@ -22,7 +22,7 @@ series have identical level construction.
 ## Visual comparisons
 
 The review surface is the three-chart sequence used in the article—not the
-single archived repository output. In every after chart, blue is the generated
+single archived repository output. In every after chart, teal is the generated
 historical reconstruction through 2019 and red is the distinct 2020–2025
 extension.
 
